@@ -1,79 +1,112 @@
 import openai
 import os
 
-# Set up the OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Or replace with your actual API key
+# Set your OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Or use your key directly: "your-api-key"
 
 
 def load_document(file_path):
-    """Load document from file."""
+    """Load document from a text file."""
     with open(file_path, 'r', encoding='utf-8') as file:
         return file.read()
 
 
-def generate_question_answer_pairs(text, num_pairs=5):
+def summarize_document(text):
     """
-    Generate question-answer pairs from the provided text using GPT.
+    Summarize the given document using GPT.
 
     Args:
-        text (str): The content of the document.
-        num_pairs (int): Number of question-answer pairs to generate.
+        text (str): The document text.
 
     Returns:
-        list of tuples: A list of (question, answer) pairs.
+        str: Summary of the document.
     """
     prompt = f"""
-    You are a helpful assistant. Below is a document. Based on the document, generate {num_pairs} question-answer pairs.
+    Summarize the following document in a concise paragraph that captures the main ideas:
 
     Document:
     {text}
 
-    The questions should be diverse and cover different aspects of the document. Provide the questions and answers in the following format:
-    1. Question: <question> Answer: <answer>
-    2. Question: <question> Answer: <answer>
+    Summary:
     """
 
-    response = openai.Completion.create(
+    response = openai.ChatCompletion.create(
         model="gpt-4",  # or "gpt-3.5-turbo"
-        prompt=prompt,
-        max_tokens=500,
-        temperature=0.7,
-        n=1,
-        stop=None
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.5,
+        max_tokens=300
     )
 
-    # Parse the response
-    qa_text = response.choices[0].text.strip()
-    qa_pairs = []
-    for qa in qa_text.split("\n"):
-        # Parse each question-answer pair from the output format
-        if "Question:" in qa and "Answer:" in qa:
-            question_answer = qa.split("Answer:")
-            question = question_answer[0].replace("Question:", "").strip()
-            answer = question_answer[1].strip()
-            qa_pairs.append((question, answer))
+    return response['choices'][0]['message']['content'].strip()
 
+
+def generate_question_answer_pairs(text, num_pairs=5):
+    """
+    Generate question-answer pairs from the document.
+
+    Args:
+        text (str): The document text.
+        num_pairs (int): Number of Q&A pairs to generate.
+
+    Returns:
+        list of (str, str): List of (question, answer) tuples.
+    """
+    prompt = f"""
+    You are a helpful assistant. Based on the document below, generate {num_pairs} diverse question-answer pairs.
+
+    Document:
+    {text}
+
+    Provide the output in this format:
+    1. Question: ... Answer: ...
+    2. Question: ... Answer: ...
+    """
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4",  # or "gpt-3.5-turbo"
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=700
+    )
+
+    qa_text = response['choices'][0]['message']['content'].strip()
+
+    # Parse the output into a list of (question, answer) pairs
+    qa_pairs = []
+    for line in qa_text.split("\n"):
+        if "Question:" in line and "Answer:" in line:
+            q_part, a_part = line.split("Answer:")
+            question = q_part.split("Question:")[-1].strip()
+            answer = a_part.strip()
+            qa_pairs.append((question, answer))
     return qa_pairs
 
 
+def display_summary(summary):
+    print("\n📄 Document Summary:\n" + "-" * 60)
+    print(summary)
+
+
 def display_qa_pairs(qa_pairs):
-    """Display the generated question-answer pairs."""
-    for idx, (question, answer) in enumerate(qa_pairs, 1):
-        print(f"{idx}. Question: {question}\n   Answer: {answer}\n")
+    print("\n❓ Question-Answer Pairs:\n" + "-"*60)
+    for i, (q, a) in enumerate(qa_pairs, 1):
+        print(f"{i}. Q: {q}\n   A: {a}\n")
 
-
-# Main function to run the program
 def main():
-    # Load the document
-    file_path = "document.txt"  # Replace with your document path
+    # Replace this with your actual document path
+    file_path = "document.txt"
+
+    # Step 1: Load the document
     document_text = load_document(file_path)
 
-    # Generate question-answer pairs
+    # Step 2: Summarize the document
+    summary = summarize_document(document_text)
+    display_summary(summary)
+
+    # Step 3: Generate Q&A pairs
     qa_pairs = generate_question_answer_pairs(document_text, num_pairs=5)
-
-    # Display the question-answer pairs
     display_qa_pairs(qa_pairs)
-
 
 if __name__ == "__main__":
     main()
+
